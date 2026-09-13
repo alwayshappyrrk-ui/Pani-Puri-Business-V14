@@ -1,0 +1,66 @@
+name: App Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Find Android project
+        run: |
+          echo "Repository files:"
+          find . -maxdepth 3 -type f | head -200
+
+      - name: Make Gradle executable
+        run: |
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+          elif [ -f "./android-project/gradlew" ]; then
+            chmod +x ./android-project/gradlew
+          else
+            echo "ERROR: gradlew not found"
+            exit 1
+          fi
+
+      - name: Build Debug APK
+        run: |
+          if [ -f "./gradlew" ]; then
+            ./gradlew assembleDebug --stacktrace
+          elif [ -f "./android-project/gradlew" ]; then
+            cd android-project
+            ./gradlew assembleDebug --stacktrace
+          fi
+
+      - name: Find APK
+        run: |
+          echo "Searching for APK..."
+          find . -type f -name "*.apk" -print
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pani-Puri-Business-V14-APK
+          path: |
+            **/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
