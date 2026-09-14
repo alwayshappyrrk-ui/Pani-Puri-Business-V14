@@ -11,112 +11,181 @@ jobs:
     name: Build Android APK
     runs-on: ubuntu-latest
 
+    env:
+      PROJECT_DIR: .
+
     steps:
 
-      - name: Checkout V14 Repository
-        uses: actions/checkout@v5
+      # =========================================================
+      # 1. CHECKOUT
+      # =========================================================
+      - name: Checkout Repository
+        uses: actions/checkout@v6
 
+
+      # =========================================================
+      # 2. JAVA 17
+      # =========================================================
       - name: Setup Java 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
+
+      # =========================================================
+      # 3. SETUP GRADLE 8.7
+      # =========================================================
       - name: Setup Gradle 8.7
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.7'
 
+
+      # =========================================================
+      # 4. FIND AND PREPARE ANDROID PROJECT
+      # =========================================================
       - name: Detect Android Project
         shell: bash
         run: |
           set -e
 
           echo "======================================"
-          echo "CHECKING V14 ANDROID PROJECT"
+          echo "SEARCHING FOR ANDROID PROJECT"
           echo "======================================"
 
-          if [ -f "./settings.gradle" ] && [ -f "./app/build.gradle" ]; then
-            echo "Android project found at repository root."
-            echo "PROJECT_DIR=." >> "$GITHUB_ENV"
-            exit 0
+          PROJECT=""
+
+          # Check root
+          if [ -f "settings.gradle" ] && [ -f "app/build.gradle" ]; then
+            PROJECT="."
           fi
 
-          PROJECT_DIR=$(find . -type f -name "settings.gradle" -print -quit | xargs -r dirname)
-
-          if [ -n "$PROJECT_DIR" ] && [ -f "$PROJECT_DIR/app/build.gradle" ]; then
-            echo "Android project found:"
-            echo "$PROJECT_DIR"
-            echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-            exit 0
+          # Check directories
+          if [ -z "$PROJECT" ]; then
+            for dir in */; do
+              if [ -f "${dir}settings.gradle" ] && [ -f "${dir}app/build.gradle" ]; then
+                PROJECT="${dir%/}"
+                break
+              fi
+            done
           fi
 
-          ZIP=$(find . -type f -iname "*.zip" -print -quit)
+          # Check ZIP files
+          if [ -z "$PROJECT" ]; then
+            ZIP_FILE=$(find . -maxdepth 2 -type f -name "*.zip" | head -n 1 || true)
 
-          if [ -n "$ZIP" ]; then
-            echo "ZIP found:"
-            echo "$ZIP"
+            if [ -n "$ZIP_FILE" ]; then
+              echo "ZIP FOUND: $ZIP_FILE"
 
-            rm -rf android-project
-            mkdir -p android-project
+              mkdir -p android-project
 
-            unzip -q "$ZIP" -d android-project
+              unzip -q "$ZIP_FILE" -d android-project
 
-            PROJECT_DIR=$(find android-project -type f -name "settings.gradle" -print -quit | xargs -r dirname)
+              echo "ZIP EXTRACTED"
 
-            if [ -n "$PROJECT_DIR" ] && [ -f "$PROJECT_DIR/app/build.gradle" ]; then
-              echo "Android project extracted:"
-              echo "$PROJECT_DIR"
-              echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-              exit 0
+              if [ -f "android-project/settings.gradle" ] && [ -f "android-project/app/build.gradle" ]; then
+                PROJECT="android-project"
+              else
+                FOUND=$(find android-project -type f -name "settings.gradle" | head -n 1 || true)
+
+                if [ -n "$FOUND" ]; then
+                  PROJECT=$(dirname "$FOUND")
+                fi
+              fi
             fi
           fi
 
-          echo "ERROR: Android project could not be found."
-          exit 1
+          if [ -z "$PROJECT" ]; then
+            echo "ERROR: Android project not found"
+            echo ""
+            echo "Repository files:"
+            find . -maxdepth 4 -type f | sort
+            exit 1
+          fi
 
+          echo "ANDROID PROJECT FOUND:"
+          echo "$PROJECT"
+
+          echo "PROJECT_DIR=$PROJECT" >> "$GITHUB_ENV"
+
+
+      # =========================================================
+      # 5. SHOW PROJECT STRUCTURE
+      # =========================================================
       - name: Show Project Structure
-        working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
         run: |
           echo "======================================"
-          echo "V14 PROJECT"
+          echo "PROJECT DIRECTORY"
           echo "======================================"
-          pwd
-          echo ""
-          find . -maxdepth 4 -type f | sort
 
+          echo "PROJECT_DIR = $PROJECT_DIR"
+
+          echo ""
+          echo "FILES:"
+          find "$PROJECT_DIR" -maxdepth 4 -type f | sort
+
+
+      # =========================================================
+      # 6. ENABLE ANDROIDX
+      # =========================================================
       - name: Configure AndroidX
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
         run: |
-          touch gradle.properties
+          set -e
 
-          grep -qxF "android.useAndroidX=true" gradle.properties || \
-          echo "android.useAndroidX=true" >> gradle.properties
+          echo "======================================"
+          echo "CONFIGURING ANDROIDX"
+          echo "======================================"
 
-          grep -qxF "android.enableJetifier=true" gradle.properties || \
-          echo "android.enableJetifier=true" >> gradle.properties
+          if [ ! -f "gradle.properties" ]; then
+            touch gradle.properties
+          fi
 
+          if ! grep -q "android.useAndroidX=true" gradle.properties; then
+            echo "android.useAndroidX=true" >> gradle.properties
+          fi
+
+          if ! grep -q "android.enableJetifier=true" gradle.properties; then
+            echo "android.enableJetifier=true" >> gradle.properties
+          fi
+
+          echo ""
+          echo "gradle.properties:"
+          cat gradle.properties
+
+
+      # =========================================================
+      # 7. CHECK GRADLE PROJECT
+      # =========================================================
       - name: Check Gradle Project
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
         run: |
+          set -e
+
           echo "======================================"
           echo "CHECKING GRADLE PROJECT"
           echo "======================================"
 
+          echo ""
           echo "settings.gradle:"
           cat settings.gradle
-
-          echo ""
-          echo "build.gradle:"
-          cat build.gradle
 
           echo ""
           echo "app/build.gradle:"
           cat app/build.gradle
 
+          echo ""
+          echo "Gradle version:"
+          gradle --version
+
+
+      # =========================================================
+      # 8. BUILD V14 DEBUG APK
+      # =========================================================
       - name: Build V14 Debug APK
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
@@ -127,17 +196,16 @@ jobs:
           echo "BUILDING PANI PURI BUSINESS V14"
           echo "======================================"
 
-          if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew
-            ./gradlew assembleDebug --no-daemon --stacktrace
-          else
-            echo "Gradle Wrapper not found."
-            echo "Using installed Gradle 8.7..."
-            gradle assembleDebug --no-daemon --stacktrace
-          fi
+          gradle --no-daemon clean assembleDebug
 
+          echo ""
+          echo "BUILD COMPLETED"
+
+
+      # =========================================================
+      # 9. FIND APK
+      # =========================================================
       - name: Find APK
-        id: apk
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
         run: |
@@ -147,47 +215,154 @@ jobs:
           echo "SEARCHING FOR APK"
           echo "======================================"
 
-          APK=$(find . -type f -name "*.apk" -print -quit)
+          APK=$(find . -type f -path "*/build/outputs/apk/debug/*.apk" | head -n 1 || true)
 
           if [ -z "$APK" ]; then
-            echo "ERROR: APK was not generated."
+            echo "ERROR: APK NOT FOUND"
             echo ""
-            echo "Build output:"
-            find . -type d -path "*/build/outputs/*" -print
+            echo "All APK files:"
+            find . -type f -name "*.apk" || true
             exit 1
           fi
 
           echo "APK FOUND:"
           echo "$APK"
 
-          echo "apk=$APK" >> "$GITHUB_OUTPUT"
+          cp "$APK" "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk"
 
-      - name: Rename APK
-        working-directory: ${{ env.PROJECT_DIR }}
+          echo ""
+          echo "APK COPIED SUCCESSFULLY"
+
+
+      # =========================================================
+      # 10. RENAME / VERIFY APK
+      # =========================================================
+      - name: Verify APK
         shell: bash
         run: |
           set -e
 
           echo "======================================"
-          echo "RENAMING V14 APK"
+          echo "VERIFYING APK"
           echo "======================================"
 
-          cp "${{ steps.apk.outputs.apk }}" \
-             "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk"
+          if [ ! -f "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk" ]; then
+            echo "ERROR: APK FILE DOES NOT EXIST"
+            exit 1
+          fi
 
-          echo "APK READY:"
           ls -lh "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk"
 
+
+      # =========================================================
+      # 11. SHOW ANDROID DEBUG SHA-1
+      # =========================================================
+      - name: Show Android Debug SHA-1
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          echo "======================================"
+          echo "ANDROID DEBUG KEY SHA-1"
+          echo "======================================"
+
+          mkdir -p "$HOME/.android"
+
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair \
+              -v \
+              -keystore "$HOME/.android/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+          keytool -list \
+            -v \
+            -keystore "$HOME/.android/debug.keystore" \
+            -storepass android \
+            -alias androiddebugkey \
+            | grep -E "SHA1:|SHA-1:"
+
+
+      # =========================================================
+      # 12. SHOW APK CERTIFICATE SHA-1
+      # =========================================================
+      - name: Show APK Certificate SHA-1
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "APK CERTIFICATE SHA-1"
+          echo "======================================"
+
+          if [ ! -f "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk" ]; then
+            echo "ERROR: APK NOT FOUND"
+            exit 1
+          fi
+
+          keytool -printcert \
+            -jarfile "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk" \
+            | grep -E "SHA1:|SHA-1:" || true
+
+
+      # =========================================================
+      # 13. SHOW APK DETAILS
+      # =========================================================
+      - name: Show APK Details
+        shell: bash
+        run: |
+          echo "======================================"
+          echo "APK DETAILS"
+          echo "======================================"
+
+          ls -lh "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk"
+
+          echo ""
+          echo "PACKAGE:"
+          echo "com.panipuri.business"
+
+          echo ""
+          echo "VERSION:"
+          echo "14.0"
+
+
+      # =========================================================
+      # 14. UPLOAD APK
+      # =========================================================
       - name: Upload V14 APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: Pani-Puri-Business-V14-APK
           path: Pani-Puri-Business-V14.apk
           if-no-files-found: error
 
+
+      # =========================================================
+      # 15. BUILD COMPLETE
+      # =========================================================
       - name: Build Complete
+        shell: bash
         run: |
           echo "======================================"
-          echo "PANI PURI BUSINESS V14 BUILD SUCCESS"
+          echo "BUILD SUCCESSFUL"
           echo "======================================"
-          echo "APK uploaded successfully."
+
+          echo ""
+          echo "Pani Puri Business V14 APK तयार आहे."
+
+          echo ""
+          echo "Package:"
+          echo "com.panipuri.business"
+
+          echo ""
+          echo "Version:"
+          echo "14.0"
+
+          echo ""
+          echo "APK:"
+          echo "Pani-Puri-Business-V14.apk"
