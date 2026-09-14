@@ -13,24 +13,20 @@ jobs:
 
     steps:
 
-      # 1. Checkout V14 Repository
       - name: Checkout V14 Repository
         uses: actions/checkout@v5
 
-      # 2. Setup Java
       - name: Setup Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      # 3. Setup Gradle
       - name: Setup Gradle 8.7
         uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: '8.7'
 
-      # 4. Detect Android Project
       - name: Detect Android Project
         shell: bash
         run: |
@@ -40,28 +36,22 @@ jobs:
           echo "CHECKING V14 ANDROID PROJECT"
           echo "======================================"
 
-          echo "Repository files:"
-          find . -maxdepth 4 -type f | sort | head -300
-
-          # Android project at repository root
           if [ -f "./settings.gradle" ] && [ -f "./app/build.gradle" ]; then
             echo "Android project found at repository root."
             echo "PROJECT_DIR=." >> "$GITHUB_ENV"
             exit 0
           fi
 
-          # Android project inside a folder
           PROJECT_DIR=$(find . -type f -name "settings.gradle" -print -quit | xargs -r dirname)
 
           if [ -n "$PROJECT_DIR" ] && [ -f "$PROJECT_DIR/app/build.gradle" ]; then
-            echo "Android project found in:"
+            echo "Android project found:"
             echo "$PROJECT_DIR"
             echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
             exit 0
           fi
 
-          # Android project inside ZIP
-          ZIP=$(find . -type f -iname "*.zip" -print | head -n 1)
+          ZIP=$(find . -type f -iname "*.zip" -print -quit)
 
           if [ -n "$ZIP" ]; then
             echo "ZIP found:"
@@ -75,7 +65,7 @@ jobs:
             PROJECT_DIR=$(find android-project -type f -name "settings.gradle" -print -quit | xargs -r dirname)
 
             if [ -n "$PROJECT_DIR" ] && [ -f "$PROJECT_DIR/app/build.gradle" ]; then
-              echo "Android project extracted to:"
+              echo "Android project extracted:"
               echo "$PROJECT_DIR"
               echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
               exit 0
@@ -83,10 +73,8 @@ jobs:
           fi
 
           echo "ERROR: Android project could not be found."
-          echo "settings.gradle and app/build.gradle are required."
           exit 1
 
-      # 5. Show Project Structure
       - name: Show Project Structure
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
@@ -94,15 +82,10 @@ jobs:
           echo "======================================"
           echo "V14 PROJECT"
           echo "======================================"
-
-          echo "Project directory:"
           pwd
-
           echo ""
-          echo "Project files:"
           find . -maxdepth 4 -type f | sort
 
-      # 6. Configure AndroidX
       - name: Configure AndroidX
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
@@ -115,7 +98,6 @@ jobs:
           grep -qxF "android.enableJetifier=true" gradle.properties || \
           echo "android.enableJetifier=true" >> gradle.properties
 
-      # 7. Check Gradle Project
       - name: Check Gradle Project
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
@@ -124,7 +106,6 @@ jobs:
           echo "CHECKING GRADLE PROJECT"
           echo "======================================"
 
-          echo ""
           echo "settings.gradle:"
           cat settings.gradle
 
@@ -136,5 +117,77 @@ jobs:
           echo "app/build.gradle:"
           cat app/build.gradle
 
-      # 8. Build V14 APK
       - name: Build V14 Debug APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "BUILDING PANI PURI BUSINESS V14"
+          echo "======================================"
+
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug --no-daemon --stacktrace
+          else
+            echo "Gradle Wrapper not found."
+            echo "Using installed Gradle 8.7..."
+            gradle assembleDebug --no-daemon --stacktrace
+          fi
+
+      - name: Find APK
+        id: apk
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "SEARCHING FOR APK"
+          echo "======================================"
+
+          APK=$(find . -type f -name "*.apk" -print -quit)
+
+          if [ -z "$APK" ]; then
+            echo "ERROR: APK was not generated."
+            echo ""
+            echo "Build output:"
+            find . -type d -path "*/build/outputs/*" -print
+            exit 1
+          fi
+
+          echo "APK FOUND:"
+          echo "$APK"
+
+          echo "apk=$APK" >> "$GITHUB_OUTPUT"
+
+      - name: Rename APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "RENAMING V14 APK"
+          echo "======================================"
+
+          cp "${{ steps.apk.outputs.apk }}" \
+             "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk"
+
+          echo "APK READY:"
+          ls -lh "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk"
+
+      - name: Upload V14 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pani-Puri-Business-V14-APK
+          path: Pani-Puri-Business-V14.apk
+          if-no-files-found: error
+
+      - name: Build Complete
+        run: |
+          echo "======================================"
+          echo "PANI PURI BUSINESS V14 BUILD SUCCESS"
+          echo "======================================"
+          echo "APK uploaded successfully."
