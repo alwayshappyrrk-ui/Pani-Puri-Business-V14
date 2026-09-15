@@ -1,4 +1,4 @@
-name: Build Pani Puri Business V14 APK
+name: Build Pani Puri Business V14 OAuth FIX V2 APK
 
 on:
   workflow_dispatch:
@@ -8,11 +8,8 @@ on:
 
 jobs:
   build:
-    name: Build Android APK
+    name: Build Android APK - OAuth FIX V2
     runs-on: ubuntu-latest
-
-    env:
-      PROJECT_DIR: .
 
     steps:
 
@@ -43,88 +40,90 @@ jobs:
 
 
       # =========================================================
-      # 4. FIND AND PREPARE ANDROID PROJECT
+      # 4. USE ONLY OAUTH FIX V2 ZIP
       # =========================================================
-      - name: Detect Android Project
+      - name: Extract OAuth FIX V2 Source
         shell: bash
         run: |
           set -e
 
           echo "======================================"
-          echo "SEARCHING FOR ANDROID PROJECT"
+          echo "PANI PURI BUSINESS V14"
+          echo "OAUTH FIX V2"
           echo "======================================"
 
-          PROJECT=""
+          ZIP_NAME="Pani_Puri_Business_V14_OAUTH_FIX_V2.zip"
 
-          # Check root
-          if [ -f "settings.gradle" ] && [ -f "app/build.gradle" ]; then
-            PROJECT="."
-          fi
-
-          # Check directories
-          if [ -z "$PROJECT" ]; then
-            for dir in */; do
-              if [ -f "${dir}settings.gradle" ] && [ -f "${dir}app/build.gradle" ]; then
-                PROJECT="${dir%/}"
-                break
-              fi
-            done
-          fi
-
-          # Check ZIP files
-          if [ -z "$PROJECT" ]; then
-            ZIP_FILE=$(find . -maxdepth 2 -type f -name "*.zip" | head -n 1 || true)
-
-            if [ -n "$ZIP_FILE" ]; then
-              echo "ZIP FOUND: $ZIP_FILE"
-
-              mkdir -p android-project
-
-              unzip -q "$ZIP_FILE" -d android-project
-
-              echo "ZIP EXTRACTED"
-
-              if [ -f "android-project/settings.gradle" ] && [ -f "android-project/app/build.gradle" ]; then
-                PROJECT="android-project"
-              else
-                FOUND=$(find android-project -type f -name "settings.gradle" | head -n 1 || true)
-
-                if [ -n "$FOUND" ]; then
-                  PROJECT=$(dirname "$FOUND")
-                fi
-              fi
-            fi
-          fi
-
-          if [ -z "$PROJECT" ]; then
-            echo "ERROR: Android project not found"
+          if [ ! -f "$ZIP_NAME" ]; then
+            echo "ERROR: Required ZIP not found:"
+            echo "$ZIP_NAME"
             echo ""
-            echo "Repository files:"
-            find . -maxdepth 4 -type f | sort
+            echo "ZIP files in repository:"
+            find . -maxdepth 2 -type f -name "*.zip" -print
             exit 1
           fi
 
-          echo "ANDROID PROJECT FOUND:"
-          echo "$PROJECT"
+          rm -rf android-project
+          mkdir -p android-project
 
-          echo "PROJECT_DIR=$PROJECT" >> "$GITHUB_ENV"
+          echo "Using EXACT ZIP:"
+          echo "$ZIP_NAME"
 
-
-      # =========================================================
-      # 5. SHOW PROJECT STRUCTURE
-      # =========================================================
-      - name: Show Project Structure
-        shell: bash
-        run: |
-          echo "======================================"
-          echo "PROJECT DIRECTORY"
-          echo "======================================"
-
-          echo "PROJECT_DIR = $PROJECT_DIR"
+          unzip -q "$ZIP_NAME" -d android-project
 
           echo ""
-          echo "FILES:"
-          find "$PROJECT_DIR" -maxdepth 4 -type f | sort
+          echo "ZIP extracted."
+
+          FOUND=$(find android-project -type f -name "settings.gradle" | head -n 1 || true)
+
+          if [ -z "$FOUND" ]; then
+            echo "ERROR: settings.gradle not found inside V2 ZIP"
+            find android-project -maxdepth 5 -type f | sort
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$FOUND")
+
+          echo ""
+          echo "Android project:"
+          echo "$PROJECT_DIR"
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+
+      # =========================================================
+      # 5. VERIFY V2 SOURCE
+      # =========================================================
+      - name: Verify OAuth FIX V2 Source
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "VERIFYING OAUTH FIX V2 SOURCE"
+          echo "======================================"
+
+          JAVA_FILE="app/src/main/java/com/panipuri/business/MainActivity.java"
+
+          if [ ! -f "$JAVA_FILE" ]; then
+            echo "ERROR: MainActivity.java not found"
+            exit 1
+          fi
+
+          echo "MainActivity found."
+
+          if grep -q "Google OAuth did not return an access token" "$JAVA_FILE"; then
+            echo "OK: OAuth FIX V2 code detected."
+          else
+            echo "ERROR: OAuth FIX V2 code NOT detected."
+            echo "Wrong/old source ZIP may have been uploaded."
+            exit 1
+          fi
+
+          echo ""
+          echo "Drive scope references:"
+          grep -n "drive.file" "$JAVA_FILE" || true
 
 
       # =========================================================
@@ -136,21 +135,15 @@ jobs:
         run: |
           set -e
 
-          echo "======================================"
-          echo "CONFIGURING ANDROIDX"
-          echo "======================================"
-
           if [ ! -f "gradle.properties" ]; then
             touch gradle.properties
           fi
 
-          if ! grep -q "android.useAndroidX=true" gradle.properties; then
+          grep -q "android.useAndroidX=true" gradle.properties || \
             echo "android.useAndroidX=true" >> gradle.properties
-          fi
 
-          if ! grep -q "android.enableJetifier=true" gradle.properties; then
+          grep -q "android.enableJetifier=true" gradle.properties || \
             echo "android.enableJetifier=true" >> gradle.properties
-          fi
 
           echo ""
           echo "gradle.properties:"
@@ -158,17 +151,17 @@ jobs:
 
 
       # =========================================================
-      # 7. CHECK GRADLE PROJECT
+      # 7. SHOW PROJECT
       # =========================================================
-      - name: Check Gradle Project
+      - name: Show Project Structure
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
         run: |
-          set -e
+          echo "======================================"
+          echo "PROJECT STRUCTURE"
+          echo "======================================"
 
-          echo "======================================"
-          echo "CHECKING GRADLE PROJECT"
-          echo "======================================"
+          echo "PROJECT_DIR=$PROJECT_DIR"
 
           echo ""
           echo "settings.gradle:"
@@ -178,28 +171,24 @@ jobs:
           echo "app/build.gradle:"
           cat app/build.gradle
 
-          echo ""
-          echo "Gradle version:"
-          gradle --version
-
 
       # =========================================================
-      # 8. BUILD V14 DEBUG APK
+      # 8. BUILD APK
       # =========================================================
-      - name: Build V14 Debug APK
+      - name: Build V14 OAuth FIX V2 Debug APK
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
         run: |
           set -e
 
           echo "======================================"
-          echo "BUILDING PANI PURI BUSINESS V14"
+          echo "BUILDING V14 OAUTH FIX V2 APK"
           echo "======================================"
 
           gradle --no-daemon clean assembleDebug
 
           echo ""
-          echo "BUILD COMPLETED"
+          echo "BUILD COMPLETED SUCCESSFULLY."
 
 
       # =========================================================
@@ -211,16 +200,11 @@ jobs:
         run: |
           set -e
 
-          echo "======================================"
-          echo "SEARCHING FOR APK"
-          echo "======================================"
-
           APK=$(find . -type f -path "*/build/outputs/apk/debug/*.apk" | head -n 1 || true)
 
           if [ -z "$APK" ]; then
             echo "ERROR: APK NOT FOUND"
             echo ""
-            echo "All APK files:"
             find . -type f -name "*.apk" || true
             exit 1
           fi
@@ -228,39 +212,48 @@ jobs:
           echo "APK FOUND:"
           echo "$APK"
 
-          cp "$APK" "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk"
-
-          echo ""
-          echo "APK COPIED SUCCESSFULLY"
+          cp "$APK" \
+            "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14-OAUTH-FIX-V2.apk"
 
 
       # =========================================================
-      # 10. RENAME / VERIFY APK
+      # 10. VERIFY APK
       # =========================================================
       - name: Verify APK
         shell: bash
         run: |
           set -e
 
-          echo "======================================"
-          echo "VERIFYING APK"
-          echo "======================================"
+          APK="${GITHUB_WORKSPACE}/Pani-Puri-Business-V14-OAUTH-FIX-V2.apk"
 
-          if [ ! -f "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk" ]; then
-            echo "ERROR: APK FILE DOES NOT EXIST"
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK does not exist"
             exit 1
           fi
 
-          ls -lh "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk"
+          echo "======================================"
+          echo "APK VERIFIED"
+          echo "======================================"
+
+          ls -lh "$APK"
+
+          echo ""
+          echo "Expected Package:"
+          echo "com.panipuri.business"
+
+          echo ""
+          echo "Expected Version:"
+          echo "14.0"
 
 
       # =========================================================
       # 11. SHOW ANDROID DEBUG SHA-1
       # =========================================================
       - name: Show Android Debug SHA-1
-        working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
         run: |
+          set -e
+
           echo "======================================"
           echo "ANDROID DEBUG KEY SHA-1"
           echo "======================================"
@@ -289,7 +282,7 @@ jobs:
 
 
       # =========================================================
-      # 12. SHOW APK CERTIFICATE SHA-1
+      # 12. SHOW ACTUAL APK CERTIFICATE SHA-1
       # =========================================================
       - name: Show APK Certificate SHA-1
         shell: bash
@@ -297,53 +290,27 @@ jobs:
           set -e
 
           echo "======================================"
-          echo "APK CERTIFICATE SHA-1"
+          echo "ACTUAL APK CERTIFICATE SHA-1"
           echo "======================================"
-
-          if [ ! -f "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk" ]; then
-            echo "ERROR: APK NOT FOUND"
-            exit 1
-          fi
 
           keytool -printcert \
-            -jarfile "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk" \
-            | grep -E "SHA1:|SHA-1:" || true
+            -jarfile "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14-OAUTH-FIX-V2.apk" \
+            | grep -E "SHA1:|SHA-1:"
 
 
       # =========================================================
-      # 13. SHOW APK DETAILS
+      # 13. UPLOAD APK
       # =========================================================
-      - name: Show APK Details
-        shell: bash
-        run: |
-          echo "======================================"
-          echo "APK DETAILS"
-          echo "======================================"
-
-          ls -lh "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.apk"
-
-          echo ""
-          echo "PACKAGE:"
-          echo "com.panipuri.business"
-
-          echo ""
-          echo "VERSION:"
-          echo "14.0"
-
-
-      # =========================================================
-      # 14. UPLOAD APK
-      # =========================================================
-      - name: Upload V14 APK
+      - name: Upload V14 OAuth FIX V2 APK
         uses: actions/upload-artifact@v6
         with:
-          name: Pani-Puri-Business-V14-APK
-          path: Pani-Puri-Business-V14.apk
+          name: Pani-Puri-Business-V14-OAUTH-FIX-V2
+          path: Pani-Puri-Business-V14-OAUTH-FIX-V2.apk
           if-no-files-found: error
 
 
       # =========================================================
-      # 15. BUILD COMPLETE
+      # 14. BUILD COMPLETE
       # =========================================================
       - name: Build Complete
         shell: bash
@@ -353,7 +320,7 @@ jobs:
           echo "======================================"
 
           echo ""
-          echo "Pani Puri Business V14 APK तयार आहे."
+          echo "Pani Puri Business V14 OAuth FIX V2 APK तयार आहे."
 
           echo ""
           echo "Package:"
@@ -365,4 +332,4 @@ jobs:
 
           echo ""
           echo "APK:"
-          echo "Pani-Puri-Business-V14.apk"
+          echo "Pani-Puri-Business-V14-OAUTH-FIX-V2.apk"
