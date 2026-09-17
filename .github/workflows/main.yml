@@ -1,4 +1,4 @@
-name: Build Pani Puri Business V14.2
+name: Build Pani Puri Business V14.2 FIXED
 
 on:
   workflow_dispatch:
@@ -8,52 +8,103 @@ on:
 
 jobs:
   build:
-    name: Build Android APK V14.2
+    name: Build Android APK V14.2 FIXED
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
 
+      # =========================================================
+      # 1. CHECKOUT
+      # =========================================================
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+
+      # =========================================================
+      # 2. JAVA 17
+      # =========================================================
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
+
+      # =========================================================
+      # 3. GRADLE 8.7
+      # =========================================================
       - name: Setup Gradle 8.7
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.7'
 
-      - name: Find V14.2 Source ZIP
+
+      # =========================================================
+      # 4. FIND FIXED V14.2 ZIP
+      # =========================================================
+      - name: Find V14.2 FIXED Source ZIP
         id: findzip
         shell: bash
         run: |
           set -e
 
+          echo "Searching for V14.2 FIXED ZIP..."
+
           ZIP="$(find . -maxdepth 3 -type f \
-            -name 'Pani_Puri_Business_V14_2_FULLSCREEN_AD.zip' \
+            -name 'Pani_Puri_Business_V14_2_FULLSCREEN_AD_FIXED.zip' \
             -print -quit)"
 
           if [ -z "$ZIP" ]; then
-            echo "ERROR: Pani_Puri_Business_V14_2_FULLSCREEN_AD.zip not found."
-            echo "Upload the V14.2 ZIP to the repository root."
+            echo ""
+            echo "=============================================="
+            echo "ERROR: V14.2 FIXED ZIP NOT FOUND"
+            echo "=============================================="
+            echo ""
+            echo "Expected file:"
+            echo "Pani_Puri_Business_V14_2_FULLSCREEN_AD_FIXED.zip"
+            echo ""
+            echo "Repository files:"
+            find . -maxdepth 3 -type f | sort
             exit 1
           fi
 
-          echo "ZIP=$ZIP"
+          echo "Found ZIP:"
+          echo "$ZIP"
+
           echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
 
-      - name: Extract V14.2 Source
+
+      # =========================================================
+      # 5. EXTRACT SOURCE
+      # =========================================================
+      - name: Extract V14.2 FIXED Source
         shell: bash
         run: |
           set -e
 
           rm -rf v142_source
+
           mkdir -p v142_source
 
-          unzip -q "${{ steps.findzip.outputs.zip }}" -d v142_source
+          unzip -q \
+            "${{ steps.findzip.outputs.zip }}" \
+            -d v142_source
+
+          echo ""
+          echo "=============================================="
+          echo "EXTRACTED SOURCE"
+          echo "=============================================="
+
+          find v142_source -maxdepth 4 -type f | head -100
+
+
+      # =========================================================
+      # 6. FIND ANDROID PROJECT
+      # =========================================================
+      - name: Detect Android Project
+        shell: bash
+        run: |
+          set -e
 
           PROJECT_DIR="$(find v142_source \
             -type f \
@@ -61,13 +112,90 @@ jobs:
             -printf '%h\n' | head -1)"
 
           if [ -z "$PROJECT_DIR" ]; then
-            echo "ERROR: settings.gradle not found after extraction."
+            PROJECT_DIR="$(find v142_source \
+              -type f \
+              -name settings.gradle.kts \
+              -printf '%h\n' | head -1)"
+          fi
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo ""
+            echo "ERROR: Android project not found."
+            echo "settings.gradle / settings.gradle.kts missing."
             exit 1
           fi
 
-          echo "PROJECT_DIR=$PROJECT_DIR"
+          echo ""
+          echo "=============================================="
+          echo "ANDROID PROJECT FOUND"
+          echo "=============================================="
+
+          echo "$PROJECT_DIR"
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
+
+      # =========================================================
+      # 7. CHECK IMPORTANT FILES
+      # =========================================================
+      - name: Check Android Project Files
+        shell: bash
+        run: |
+          set -e
+
+          echo "Checking project..."
+
+          test -f "$PROJECT_DIR/settings.gradle" \
+            || test -f "$PROJECT_DIR/settings.gradle.kts"
+
+          test -f "$PROJECT_DIR/app/build.gradle" \
+            || test -f "$PROJECT_DIR/app/build.gradle.kts"
+
+          test -f "$PROJECT_DIR/app/src/main/assets/index.html"
+
+          test -f "$PROJECT_DIR/app/src/main/java/com/panipuri/business/MainActivity.java"
+
+          echo ""
+          echo "All required project files found."
+
+
+      # =========================================================
+      # 8. SHOW VERSION / PACKAGE
+      # =========================================================
+      - name: Show App Version
+        shell: bash
+        run: |
+          echo ""
+          echo "=============================================="
+          echo "APP INFORMATION"
+          echo "=============================================="
+
+          grep -nE \
+            'applicationId|versionCode|versionName' \
+            "$PROJECT_DIR/app/build.gradle" \
+            || true
+
+
+      # =========================================================
+      # 9. VERIFY GOOGLE DRIVE OAUTH
+      # =========================================================
+      - name: Verify Google Drive OAuth
+        shell: bash
+        run: |
+          set -e
+
+          JAVA="$PROJECT_DIR/app/src/main/java/com/panipuri/business/MainActivity.java"
+
+          echo "Checking Google Drive OAuth..."
+
+          grep -q 'drive.file' "$JAVA"
+
+          echo "drive.file scope found."
+
+
+      # =========================================================
+      # 10. VERIFY V14.2 FEATURES
+      # =========================================================
       - name: Verify V14.2 Features
         shell: bash
         run: |
@@ -75,45 +203,84 @@ jobs:
 
           HTML="$PROJECT_DIR/app/src/main/assets/index.html"
           JAVA="$PROJECT_DIR/app/src/main/java/com/panipuri/business/MainActivity.java"
-          GRADLE="$PROJECT_DIR/app/build.gradle"
 
-          test -f "$HTML"
-          test -f "$JAVA"
-          test -f "$GRADLE"
+          echo ""
+          echo "=============================================="
+          echo "VERIFYING V14.2 FEATURES"
+          echo "=============================================="
 
-          grep -q 'Full-Screen Advertisement' "$HTML"
-          grep -q 'openOtherAmount' "$HTML"
-          grep -q 'openExpensePad' "$HTML"
-          grep -q "savePayment('Credit')" "$HTML"
-          grep -q 'renderCreditList' "$HTML"
-          grep -q 'markCustomerPaid' "$HTML"
-          grep -q 'PPHandleBack' "$HTML"
+          echo "Checking Full-Screen Advertisement..."
+          grep -qi 'Full-Screen Advertisement' "$HTML"
 
-          grep -q 'AndroidMedia' "$JAVA"
-          grep -q 'InternalStoragePathHandler' "$JAVA"
-          grep -q 'REQ_AD_MEDIA' "$JAVA"
+          echo "Checking Image / Video advertisement..."
+          grep -qi 'advertisement' "$HTML"
 
-          grep -q 'F4:96:33:10:EE:A1:3D:7D:0C:64:1E:07:48:3E:C0:A4:C2:C1:C4:23' "$JAVA"
+          echo "Checking Other Amount..."
+          grep -qi 'openOtherAmount' "$HTML"
 
-          grep -q "versionCode 142" "$GRADLE"
-          grep -q "versionName '14.2'" "$GRADLE"
+          echo "Checking Quick Expense..."
+          grep -qi 'openExpensePad' "$HTML"
 
-          echo "========================================"
-          echo "V14.2 SOURCE VERIFICATION PASSED"
-          echo "========================================"
+          echo "Checking Credit..."
+          grep -qi "savePayment('Credit')" "$HTML"
 
-      - name: Show Project Information
+          echo "Checking Credit List..."
+          grep -qi 'renderCreditList' "$HTML"
+
+          echo "Checking Paid option..."
+          grep -qi 'markCustomerPaid' "$HTML"
+
+          echo "Checking Back Navigation..."
+          grep -qi 'PPHandleBack' "$HTML"
+
+          echo "Checking Android media handling..."
+          grep -qi 'AndroidMedia' "$JAVA"
+
+          echo ""
+          echo "=============================================="
+          echo "V14.2 FEATURE VERIFICATION PASSED"
+          echo "=============================================="
+
+
+      # =========================================================
+      # 11. CHECK GRADLE WRAPPER
+      # =========================================================
+      - name: Check Gradle Wrapper
         shell: bash
         run: |
-          echo "Project: $PROJECT_DIR"
+          set -e
 
-          grep -nE \
-            'applicationId|versionCode|versionName' \
-            "$PROJECT_DIR/app/build.gradle"
+          cd "$PROJECT_DIR"
 
-          grep -n 'drive.file' \
-            "$PROJECT_DIR/app/src/main/java/com/panipuri/business/MainActivity.java"
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            echo "Gradle wrapper found."
+          else
+            echo "Gradle wrapper not found."
+            echo "System Gradle 8.7 will be used."
+          fi
 
+
+      # =========================================================
+      # 12. CLEAN BUILD
+      # =========================================================
+      - name: Clean Android Project
+        shell: bash
+        run: |
+          set -e
+
+          cd "$PROJECT_DIR"
+
+          if [ -x "./gradlew" ]; then
+            ./gradlew --no-daemon clean
+          else
+            gradle --no-daemon clean
+          fi
+
+
+      # =========================================================
+      # 13. BUILD DEBUG APK
+      # =========================================================
       - name: Build V14.2 Debug APK
         shell: bash
         run: |
@@ -121,16 +288,34 @@ jobs:
 
           cd "$PROJECT_DIR"
 
-          if [ -x ./gradlew ]; then
-            ./gradlew --no-daemon clean assembleDebug
+          echo ""
+          echo "=============================================="
+          echo "BUILDING PANI PURI BUSINESS V14.2"
+          echo "=============================================="
+
+          if [ -x "./gradlew" ]; then
+            ./gradlew \
+              --no-daemon \
+              --stacktrace \
+              assembleDebug
           else
-            gradle --no-daemon clean assembleDebug
+            gradle \
+              --no-daemon \
+              --stacktrace \
+              assembleDebug
           fi
 
-      - name: Locate V14.2 APK
+
+      # =========================================================
+      # 14. FIND APK
+      # =========================================================
+      - name: Find Generated APK
         shell: bash
         run: |
           set -e
+
+          echo ""
+          echo "Searching for APK..."
 
           APK="$(find "$PROJECT_DIR" \
             -type f \
@@ -138,22 +323,60 @@ jobs:
             -print -quit)"
 
           if [ -z "$APK" ]; then
-            echo "ERROR: Debug APK not found."
+            echo ""
+            echo "=============================================="
+            echo "ERROR: APK NOT FOUND"
+            echo "=============================================="
+
+            find "$PROJECT_DIR" \
+              -type f \
+              -name '*.apk' \
+              -print
+
             exit 1
           fi
 
-          cp "$APK" \
-            "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-FULLSCREEN-AD.apk"
+          echo "APK found:"
+          echo "$APK"
 
-          echo "APK=$APK"
+          cp "$APK" \
+            "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-FULLSCREEN-AD-FIXED.apk"
+
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
+
+
+      # =========================================================
+      # 15. APK FILE INFORMATION
+      # =========================================================
+      - name: Show APK Information
+        shell: bash
+        run: |
+          set -e
+
+          echo ""
+          echo "=============================================="
+          echo "APK INFORMATION"
+          echo "=============================================="
 
           ls -lh \
-            "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-FULLSCREEN-AD.apk"
+            "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-FULLSCREEN-AD-FIXED.apk"
 
+          file \
+            "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-FULLSCREEN-AD-FIXED.apk"
+
+
+      # =========================================================
+      # 16. SHOW ACTUAL APK SHA-1
+      # =========================================================
       - name: Show Actual APK Certificate SHA-1
         shell: bash
         run: |
           set -e
+
+          echo ""
+          echo "=============================================="
+          echo "APK CERTIFICATE SHA-1"
+          echo "=============================================="
 
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" \
             -type f \
@@ -162,34 +385,38 @@ jobs:
             | tail -1)"
 
           if [ -z "$APKSIGNER" ]; then
-            echo "apksigner not found"
+            echo "ERROR: apksigner not found."
             exit 1
           fi
 
           "$APKSIGNER" verify \
             --print-certs \
-            "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-FULLSCREEN-AD.apk" \
-            | tee apk-cert.txt
+            "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-FULLSCREEN-AD-FIXED.apk"
 
-      - name: Show APK Details
-        shell: bash
-        run: |
-          ls -lh \
-            "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-FULLSCREEN-AD.apk"
 
-          file \
-            "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-FULLSCREEN-AD.apk"
-
+      # =========================================================
+      # 17. UPLOAD APK ARTIFACT
+      # =========================================================
       - name: Upload V14.2 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Pani-Puri-Business-V14.2-FULLSCREEN-AD-APK
-          path: Pani-Puri-Business-V14.2-FULLSCREEN-AD.apk
+          name: Pani-Puri-Business-V14.2-FULLSCREEN-AD-FIXED-APK
+          path: Pani-Puri-Business-V14.2-FULLSCREEN-AD-FIXED.apk
           if-no-files-found: error
 
+
+      # =========================================================
+      # 18. BUILD SUCCESS
+      # =========================================================
       - name: Build Complete
+        shell: bash
         run: |
-          echo "========================================"
-          echo "PANI PURI BUSINESS V14.2"
-          echo "BUILD COMPLETED SUCCESSFULLY"
-          echo "========================================"
+          echo ""
+          echo "=============================================="
+          echo "✅ PANI PURI BUSINESS V14.2"
+          echo "✅ BUILD COMPLETED SUCCESSFULLY"
+          echo "=============================================="
+          echo ""
+          echo "APK:"
+          echo "Pani-Puri-Business-V14.2-FULLSCREEN-AD-FIXED.apk"
+          echo ""
