@@ -1,4 +1,4 @@
-name: Build Android APK V14.2 - ADMIN OTHER FIX
+name: Build Pani Puri Business V14.2 - Current Bill Save Fix
 
 on:
   workflow_dispatch:
@@ -40,7 +40,7 @@ jobs:
 
 
       # =====================================================
-      # 4. FIND V14.2 SOURCE ZIP
+      # 4. FIND CORRECT V14.2 ZIP
       # =====================================================
       - name: Find V14.2 Source ZIP
         shell: bash
@@ -51,7 +51,7 @@ jobs:
           echo "SEARCHING FOR V14.2 SOURCE ZIP"
           echo "=========================================="
 
-          ZIP="Pani_Puri_Business_V14_2_ADMIN_OTHER_FIX.zip"
+          ZIP="Pani_Puri_Business_V14_2_CURRENT_BILL_SAVE_FIX.zip"
 
           echo "Looking for:"
           echo "$ZIP"
@@ -62,13 +62,11 @@ jobs:
             echo ""
             echo "Files available in repository:"
             find . -maxdepth 3 -type f | sort
-            echo ""
-            echo "Please upload the ZIP to the repository ROOT."
             exit 1
           fi
 
           echo ""
-          echo "SUCCESS: V14.2 source ZIP found."
+          echo "SUCCESS: Correct V14.2 ZIP found."
           ls -lh "$ZIP"
 
 
@@ -84,11 +82,11 @@ jobs:
           mkdir -p v142_source
 
           unzip -q \
-            "Pani_Puri_Business_V14_2_ADMIN_OTHER_FIX.zip" \
+            "Pani_Puri_Business_V14_2_CURRENT_BILL_SAVE_FIX.zip" \
             -d v142_source
 
           echo "=========================================="
-          echo "EXTRACTED SOURCE"
+          echo "SOURCE EXTRACTED"
           echo "=========================================="
 
           find v142_source -maxdepth 4 -type f | sort
@@ -103,8 +101,9 @@ jobs:
           set -e
 
           PROJECT_DIR=$(find "$GITHUB_WORKSPACE/v142_source" \
-            -name settings.gradle \
-            -o -name settings.gradle.kts \
+            -type f \
+            \( -name "settings.gradle" -o -name "settings.gradle.kts" \) \
+            -print \
             | head -n 1 \
             | xargs -r dirname)
 
@@ -113,22 +112,25 @@ jobs:
             exit 1
           fi
 
-          echo "ANDROID PROJECT:"
+          echo "=========================================="
+          echo "ANDROID PROJECT FOUND"
+          echo "=========================================="
+
           echo "$PROJECT_DIR"
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
 
       # =====================================================
-      # 7. VERIFY SOURCE
+      # 7. VERIFY SOURCE FILES
       # =====================================================
-      - name: Verify Corrected Source
+      - name: Verify V14.2 Source
         shell: bash
         run: |
           set -e
 
           echo "=========================================="
-          echo "VERIFYING V14.2 SOURCE"
+          echo "VERIFYING SOURCE"
           echo "=========================================="
 
           MAIN="$PROJECT_DIR/app/src/main/java/com/panipuri/business/MainActivity.java"
@@ -144,31 +146,33 @@ jobs:
             exit 1
           fi
 
-          echo "MainActivity.java FOUND"
-          echo "index.html FOUND"
+          echo "MainActivity.java: FOUND"
+          echo "index.html: FOUND"
 
           echo ""
-          echo "Checking Admin:"
-          grep -n -i "admin" "$HTML" | head -20 || true
+          echo "Checking Current Bill:"
+          grep -n -i "current.*bill\|bill.*save\|saveBill\|saveEntry" "$HTML" | head -30 || true
 
           echo ""
           echo "Checking Other Amount:"
           grep -n -i "other" "$HTML" | head -30 || true
 
           echo ""
-          echo "Checking Cash/Credit:"
+          echo "Checking Cash / Credit:"
           grep -n -i "cash\|credit" "$HTML" | head -30 || true
+
+          echo ""
+          echo "Checking Admin:"
+          grep -n -i "admin" "$HTML" | head -30 || true
 
 
       # =====================================================
-      # 8. ENABLE ANDROIDX
+      # 8. ANDROIDX
       # =====================================================
       - name: Enable AndroidX
         shell: bash
         run: |
           set -e
-
-          cd "$PROJECT_DIR"
 
           mkdir -p "$HOME/.gradle"
 
@@ -178,8 +182,20 @@ jobs:
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           EOF
 
+
       # =====================================================
-      # 9. CLEAN PROJECT
+      # 9. SHOW GRADLE
+      # =====================================================
+      - name: Check Gradle
+        shell: bash
+        run: |
+          set -e
+
+          gradle --version
+
+
+      # =====================================================
+      # 10. CLEAN
       # =====================================================
       - name: Clean Project
         shell: bash
@@ -189,10 +205,8 @@ jobs:
           cd "$PROJECT_DIR"
 
           echo "=========================================="
-          echo "CLEANING ANDROID PROJECT"
+          echo "CLEAN PROJECT"
           echo "=========================================="
-
-          gradle --version
 
           gradle \
             --no-daemon \
@@ -200,7 +214,7 @@ jobs:
 
 
       # =====================================================
-      # 10. BUILD APK
+      # 11. BUILD APK
       # =====================================================
       - name: Build V14.2 Debug APK
         shell: bash
@@ -219,7 +233,7 @@ jobs:
 
 
       # =====================================================
-      # 11. FIND APK
+      # 12. FIND APK
       # =====================================================
       - name: Find APK
         shell: bash
@@ -253,7 +267,7 @@ jobs:
 
 
       # =====================================================
-      # 12. SHOW SHA-1
+      # 13. SHA-1
       # =====================================================
       - name: Show Debug APK SHA-1
         shell: bash
@@ -270,7 +284,7 @@ jobs:
             | tail -n 1)
 
           if [ -z "$APKSIGNER" ]; then
-            echo "apksigner not found."
+            echo "ERROR: apksigner not found."
             exit 1
           fi
 
@@ -281,7 +295,7 @@ jobs:
 
 
       # =====================================================
-      # 13. COPY APK
+      # 14. COPY APK
       # =====================================================
       - name: Copy APK
         shell: bash
@@ -289,27 +303,25 @@ jobs:
           set -e
 
           cp "$APK" \
-            "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-ADMIN-OTHER-FIX.apk"
-
-          echo "APK copied successfully."
+            "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-CURRENT-BILL-SAVE-FIX.apk"
 
           ls -lh \
-            "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-ADMIN-OTHER-FIX.apk"
+            "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-CURRENT-BILL-SAVE-FIX.apk"
 
 
       # =====================================================
-      # 14. UPLOAD APK ARTIFACT
+      # 15. UPLOAD APK
       # =====================================================
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Pani-Puri-Business-V14.2-ADMIN-OTHER-FIX
-          path: Pani-Puri-Business-V14.2-ADMIN-OTHER-FIX.apk
+          name: Pani-Puri-Business-V14.2-CURRENT-BILL-SAVE-FIX
+          path: Pani-Puri-Business-V14.2-CURRENT-BILL-SAVE-FIX.apk
           if-no-files-found: error
 
 
       # =====================================================
-      # 15. BUILD SUCCESS
+      # 16. SUCCESS
       # =====================================================
       - name: Build Success
         shell: bash
@@ -319,9 +331,9 @@ jobs:
           echo "V14.2 BUILD SUCCESS"
           echo "=========================================="
           echo ""
-          echo "Admin fix included"
+          echo "Current Bill Save Fix"
           echo "Other Amount Cash/Credit removed"
-          echo "Cash/Credit available in Current Bill"
-          echo "APK artifact uploaded successfully"
+          echo "Credit button reduced"
+          echo "Admin section included"
+          echo "APK artifact uploaded"
           echo ""
-      
