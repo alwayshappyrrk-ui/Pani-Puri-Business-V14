@@ -178,9 +178,8 @@ jobs:
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           EOF
 
-
       # =====================================================
-      # 9. CLEAN
+      # 9. CLEAN PROJECT
       # =====================================================
       - name: Clean Project
         shell: bash
@@ -189,9 +188,15 @@ jobs:
 
           cd "$PROJECT_DIR"
 
-          chmod +x gradlew
+          echo "=========================================="
+          echo "CLEANING ANDROID PROJECT"
+          echo "=========================================="
 
-          ./gradlew --no-daemon clean
+          gradle --version
+
+          gradle \
+            --no-daemon \
+            clean
 
 
       # =====================================================
@@ -202,15 +207,13 @@ jobs:
         run: |
           set -e
 
+          cd "$PROJECT_DIR"
+
           echo "=========================================="
           echo "BUILDING PANI PURI BUSINESS V14.2"
           echo "=========================================="
 
-          cd "$PROJECT_DIR"
-
-          chmod +x gradlew
-
-          ./gradlew \
+          gradle \
             --no-daemon \
             assembleDebug
 
@@ -261,10 +264,20 @@ jobs:
           echo "APK CERTIFICATE SHA-1"
           echo "=========================================="
 
-          $ANDROID_HOME/build-tools/*/apksigner \
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" \
+            -name apksigner \
+            | sort \
+            | tail -n 1)
+
+          if [ -z "$APKSIGNER" ]; then
+            echo "apksigner not found."
+            exit 1
+          fi
+
+          "$APKSIGNER" \
             verify \
             --print-certs \
-            "$APK" || true
+            "$APK"
 
 
       # =====================================================
@@ -277,6 +290,8 @@ jobs:
 
           cp "$APK" \
             "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-ADMIN-OTHER-FIX.apk"
+
+          echo "APK copied successfully."
 
           ls -lh \
             "$GITHUB_WORKSPACE/Pani-Puri-Business-V14.2-ADMIN-OTHER-FIX.apk"
@@ -294,7 +309,7 @@ jobs:
 
 
       # =====================================================
-      # 15. SUCCESS
+      # 15. BUILD SUCCESS
       # =====================================================
       - name: Build Success
         shell: bash
@@ -304,8 +319,9 @@ jobs:
           echo "V14.2 BUILD SUCCESS"
           echo "=========================================="
           echo ""
-          echo "Admin button fixed"
+          echo "Admin fix included"
           echo "Other Amount Cash/Credit removed"
-          echo "Cash/Credit kept in Current Bill"
-          echo "APK artifact uploaded"
+          echo "Cash/Credit available in Current Bill"
+          echo "APK artifact uploaded successfully"
           echo ""
+      
