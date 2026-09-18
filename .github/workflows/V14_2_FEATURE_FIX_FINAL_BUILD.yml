@@ -1,0 +1,136 @@
+name: Build Pani Puri Business V14.2 Debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build Android APK V14.2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Find V14.2 Source ZIP
+        id: findzip
+        shell: bash
+        run: |
+          set -e
+          ZIP="$(find . -maxdepth 4 -type f -name 'Pani_Puri_Business_V14_2_FEATURE_FIX_FINAL.zip' -print -quit)"
+          if [ -z "$ZIP" ]; then
+            echo "ERROR: Pani_Puri_Business_V14_2_FEATURE_FIX_FINAL.zip not found."
+            echo "Upload the corrected V14.2 ZIP to the repository root."
+            exit 1
+          fi
+          echo "ZIP=$ZIP"
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+
+      - name: Extract V14.2 Source
+        shell: bash
+        run: |
+          set -e
+          rm -rf v142_source
+          mkdir -p v142_source
+          unzip -q "${{ steps.findzip.outputs.zip }}" -d v142_source
+
+          PROJECT_DIR="$(find v142_source -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit | xargs -r dirname)"
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: Gradle project not found after extraction."
+            find v142_source -maxdepth 5 -type f | head -100
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" | tee project_dir.txt
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Verify Corrected Source
+        shell: bash
+        run: |
+          set -e
+          JAVA="$PROJECT_DIR/app/src/main/java/com/panipuri/business/MainActivity.java"
+          HTML="$PROJECT_DIR/app/src/main/assets/index.html"
+          GRADLE="$PROJECT_DIR/app/build.gradle"
+
+          test -f "$JAVA"
+          test -f "$HTML"
+          test -f "$GRADLE"
+
+          echo "Checking corrected advertisement block..."
+          grep -q 'boolean isVideo' "$JAVA"
+          grep -q 'if(isVideo)' "$JAVA"
+          grep -q 'InternalStoragePathHandler' "$JAVA"
+          grep -q 'REQ_AD_MEDIA' "$JAVA"
+
+          echo "Checking V14.2 version..."
+          grep -q 'versionCode 142' "$GRADLE"
+          grep -q "versionName '14.2'" "$GRADLE"
+
+          echo "Corrected V14.2 source verification PASSED."
+
+      - name: Enable AndroidX
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          touch gradle.properties
+          grep -qxF 'android.useAndroidX=true' gradle.properties || echo 'android.useAndroidX=true' >> gradle.properties
+          grep -qxF 'android.enableJetifier=true' gradle.properties || echo 'android.enableJetifier=true' >> gradle.properties
+
+      - name: Build V14.2 Debug APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -e
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            ./gradlew clean assembleDebug --no-daemon --stacktrace
+          else
+            gradle clean assembleDebug --no-daemon --stacktrace
+          fi
+
+      - name: Show Debug APK SHA-1
+        shell: bash
+        run: |
+          set -e
+          APK="$(find "$PROJECT_DIR" -type f -path '*/build/outputs/apk/debug/*.apk' -print -quit)"
+          if [ -z "$APK" ]; then
+            echo "ERROR: Debug APK not found."
+            exit 1
+          fi
+
+          SDK_APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          if [ -n "$SDK_APKSIGNER" ]; then
+            echo "APK: $APK"
+            "$SDK_APKSIGNER" verify --print-certs "$APK" | sed -n '/Signer #1 certificate SHA-1 digest:/p'
+          else
+            echo "apksigner not found; skipping SHA-1 display."
+          fi
+
+      - name: Copy APK
+        shell: bash
+        run: |
+          set -e
+          APK="$(find "$PROJECT_DIR" -type f -path '*/build/outputs/apk/debug/*.apk' -print -quit)"
+          cp "$APK" Pani-Puri-Business-V14.2-FEATURE-FIX-FINAL.apk
+          ls -lh Pani-Puri-Business-V14.2-FEATURE-FIX-FINAL.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pani-Puri-Business-V14.2-FEATURE-FIX-FINAL
+          path: Pani-Puri-Business-V14.2-FEATURE-FIX-FINAL.apk
+          if-no-files-found: error
