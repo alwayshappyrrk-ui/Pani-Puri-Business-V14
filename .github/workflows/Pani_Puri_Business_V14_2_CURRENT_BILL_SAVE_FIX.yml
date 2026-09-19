@@ -51,8 +51,8 @@ jobs:
           find . -maxdepth 3 -type f | sort | head -300
 
 
-      # =========================================================
-      # 5. FIND AND EXTRACT SOURCE ZIP
+            # =========================================================
+      # 5. FIND AND EXTRACT EXACT V14.2 SOURCE ZIP
       # =========================================================
       - name: Find V14.2 Source ZIP
         shell: bash
@@ -60,38 +60,25 @@ jobs:
           set -e
 
           echo "=========================================="
-          echo "SEARCHING FOR V14.2 SOURCE ZIP"
+          echo "SEARCHING FOR EXACT V14.2 V3 SOURCE ZIP"
           echo "=========================================="
 
-          ZIP=""
-
-          for f in $(find . -type f -iname "*.zip"); do
-            echo "Found ZIP: $f"
-
-            if [[ "$f" == *"CREDIT-EXPENSE-FIXED"* ]]; then
-              ZIP="$f"
-              break
-            fi
-          done
+          ZIP=$(find . -type f \
+            -name "Pani-Puri-Business-V14.2-FINAL-ONLY-2-FIXES-V3.zip" \
+            | head -1)
 
           if [ -z "$ZIP" ]; then
-            echo "Fixed ZIP not found."
-            echo "Searching for any V14.2 ZIP..."
-
-            for f in $(find . -type f -iname "*.zip"); do
-              if [[ "$f" == *"V14_2"* ]] || [[ "$f" == *"V14.2"* ]]; then
-                ZIP="$f"
-                break
-              fi
-            done
-          fi
-
-          if [ -z "$ZIP" ]; then
-            echo "ERROR: No source ZIP found."
+            echo "ERROR: Exact V3 source ZIP not found."
+            echo ""
+            echo "Available ZIP files:"
+            find . -type f -iname "*.zip" -print
             exit 1
           fi
 
-          echo "Using source ZIP:"
+          echo ""
+          echo "=========================================="
+          echo "USING EXACT SOURCE ZIP"
+          echo "=========================================="
           echo "$ZIP"
 
           rm -rf android-project
@@ -104,7 +91,7 @@ jobs:
           echo "EXTRACTED SOURCE"
           echo "=========================================="
 
-          find android-project -maxdepth 4 -type f | sort | head -300
+          find android-project -maxdepth 5 -type f | sort | head -500
 
 
       # =========================================================
