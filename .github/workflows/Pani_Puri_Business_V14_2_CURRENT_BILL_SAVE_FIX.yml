@@ -1,4 +1,4 @@
-name: Build Pani Puri Business V14.2 Fixed APK
+name: Build Pani Puri Business V14.2 Admin Dashboard Fixed APK
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build V14.2 Fixed APK
+    name: Build V14.2 Admin Dashboard Fixed APK
     runs-on: ubuntu-latest
 
     steps:
@@ -31,54 +31,64 @@ jobs:
 
 
       # =========================================================
-      # 3. SETUP GRADLE
+      # 3. SETUP GRADLE 8.7
       # =========================================================
-      - name: Setup Gradle
+      - name: Setup Gradle 8.7
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.7'
 
 
       # =========================================================
-      # 4. SHOW FILES
+      # 4. SHOW REPOSITORY FILES
       # =========================================================
       - name: Show Repository Files
-        shell: bash
-        run: |
-          echo "=========================================="
-          echo "REPOSITORY CONTENT"
-          echo "=========================================="
-          find . -maxdepth 3 -type f | sort | head -300
-
-
-            # =========================================================
-      # 5. FIND AND EXTRACT EXACT V14.2 SOURCE ZIP
-      # =========================================================
-      - name: Find V14.2 Source ZIP
         shell: bash
         run: |
           set -e
 
           echo "=========================================="
-          echo "SEARCHING FOR EXACT V14.2 V3 SOURCE ZIP"
+          echo "REPOSITORY CONTENT"
+          echo "=========================================="
+
+          find . -maxdepth 4 -type f | sort | head -500
+
+
+      # =========================================================
+      # 5. FIND EXACT ADMIN DASHBOARD FIX SOURCE ZIP
+      # =========================================================
+      - name: Find Admin Dashboard Fix Source ZIP
+        shell: bash
+        run: |
+          set -e
+
+          echo "=========================================="
+          echo "SEARCHING FOR ADMIN DASHBOARD FIX ZIP"
           echo "=========================================="
 
           ZIP=$(find . -type f \
-            -name "Pani-Puri-Business-V14.2-FINAL-ONLY-2-FIXES-V3.zip" \
+            -name "Pani_Puri_Business_V14_2_ADMIN_DASHBOARD_FIX_5.zip" \
             | head -1)
 
           if [ -z "$ZIP" ]; then
-            echo "ERROR: Exact V3 source ZIP not found."
+
+            echo ""
+            echo "ERROR: Required source ZIP not found."
+            echo ""
+            echo "Expected ZIP:"
+            echo "Pani_Puri_Business_V14_2_ADMIN_DASHBOARD_FIX_5.zip"
             echo ""
             echo "Available ZIP files:"
             find . -type f -iname "*.zip" -print
+
             exit 1
           fi
 
           echo ""
           echo "=========================================="
-          echo "USING EXACT SOURCE ZIP"
+          echo "USING SOURCE ZIP"
           echo "=========================================="
+
           echo "$ZIP"
 
           rm -rf android-project
@@ -88,45 +98,56 @@ jobs:
 
           echo ""
           echo "=========================================="
-          echo "EXTRACTED SOURCE"
+          echo "SOURCE EXTRACTED"
           echo "=========================================="
 
-          find android-project -maxdepth 5 -type f | sort | head -500
+          find android-project -maxdepth 6 -type f | sort | head -600
 
 
       # =========================================================
-      # 6. FIND GRADLE PROJECT
+      # 6. DETECT ANDROID PROJECT
       # =========================================================
       - name: Detect Android Project
         shell: bash
         run: |
           set -e
 
-          echo "Searching for settings.gradle..."
+          echo "=========================================="
+          echo "SEARCHING FOR GRADLE PROJECT"
+          echo "=========================================="
 
           SETTINGS=$(find android-project \
-            -name "settings.gradle" \
-            -o -name "settings.gradle.kts" \
-            | head -1)
+            \( -name "settings.gradle" -o -name "settings.gradle.kts" \) \
+            -print -quit)
 
           if [ -z "$SETTINGS" ]; then
+
+            echo ""
             echo "ERROR: settings.gradle not found."
-            find android-project -maxdepth 6 -type f | sort
+
+            echo ""
+            echo "Extracted files:"
+            find android-project -maxdepth 8 -type f | sort
+
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$SETTINGS")
 
-          echo "Detected project:"
+          echo ""
+          echo "=========================================="
+          echo "ANDROID PROJECT DETECTED"
+          echo "=========================================="
+
           echo "$PROJECT_DIR"
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
 
       # =========================================================
-      # 7. CHECK GRADLE FILES
+      # 7. VERIFY PROJECT
       # =========================================================
-      - name: Verify Gradle Project
+      - name: Verify Android Project
         shell: bash
         run: |
           set -e
@@ -134,7 +155,7 @@ jobs:
           cd "$PROJECT_DIR"
 
           echo "=========================================="
-          echo "GRADLE PROJECT"
+          echo "PROJECT STRUCTURE"
           echo "=========================================="
 
           pwd
@@ -143,7 +164,8 @@ jobs:
 
           echo ""
           echo "Gradle files:"
-          find . -maxdepth 3 \
+
+          find . -maxdepth 4 \
             \( -name "build.gradle" \
             -o -name "build.gradle.kts" \
             -o -name "settings.gradle" \
@@ -153,7 +175,47 @@ jobs:
 
 
       # =========================================================
-      # 8. MAKE GRADLEW EXECUTABLE IF PRESENT
+      # 8. VERIFY IMPORTANT V14.2 FEATURES
+      # =========================================================
+      - name: Verify V14.2 Fixed Features
+        shell: bash
+        run: |
+          set -e
+
+          cd "$PROJECT_DIR"
+
+          echo "=========================================="
+          echo "VERIFYING V14.2 FEATURES"
+          echo "=========================================="
+
+          HTML="app/src/main/assets/index.html"
+          JAVA="app/src/main/java/com/panipuri/business/MainActivity.java"
+          GRADLE_FILE="app/build.gradle"
+
+          if [ -f "$HTML" ]; then
+            echo "index.html found."
+          else
+            echo "WARNING: index.html not found at expected path."
+          fi
+
+          if [ -f "$JAVA" ]; then
+            echo "MainActivity.java found."
+          else
+            echo "WARNING: MainActivity.java not found at expected path."
+          fi
+
+          if [ -f "$GRADLE_FILE" ]; then
+            echo "app/build.gradle found."
+          else
+            echo "WARNING: app/build.gradle not found at expected path."
+          fi
+
+          echo ""
+          echo "Feature verification completed."
+
+
+      # =========================================================
+      # 9. PREPARE GRADLE
       # =========================================================
       - name: Prepare Gradle
         shell: bash
@@ -163,16 +225,22 @@ jobs:
           cd "$PROJECT_DIR"
 
           if [ -f "./gradlew" ]; then
+
             chmod +x ./gradlew
+
             echo "gradlew found."
+            echo "Using project Gradle wrapper."
+
           else
+
             echo "gradlew not found."
-            echo "System Gradle 8.7 will be used."
+            echo "Using system Gradle 8.7."
+
           fi
 
 
       # =========================================================
-      # 9. CLEAN BUILD
+      # 10. CLEAN BUILD
       # =========================================================
       - name: Clean Project
         shell: bash
@@ -181,17 +249,25 @@ jobs:
 
           cd "$PROJECT_DIR"
 
+          echo "=========================================="
+          echo "CLEANING PROJECT"
+          echo "=========================================="
+
           if [ -f "./gradlew" ]; then
+
             ./gradlew --no-daemon clean
+
           else
+
             gradle --no-daemon clean
+
           fi
 
 
       # =========================================================
-      # 10. BUILD DEBUG APK
+      # 11. BUILD DEBUG APK
       # =========================================================
-      - name: Build Debug APK
+      - name: Build V14.2 Fixed APK
         shell: bash
         run: |
           set -e
@@ -203,22 +279,26 @@ jobs:
           echo "=========================================="
 
           if [ -f "./gradlew" ]; then
-            ./gradlew --no-daemon assembleDebug
+
+            ./gradlew --no-daemon assembleDebug --stacktrace
+
           else
-            gradle --no-daemon assembleDebug
+
+            gradle --no-daemon assembleDebug --stacktrace
+
           fi
 
 
       # =========================================================
-      # 11. FIND APK
+      # 12. FIND APK
       # =========================================================
-      - name: Find APK
+      - name: Find Built APK
         shell: bash
         run: |
           set -e
 
           echo "=========================================="
-          echo "SEARCHING FOR APK"
+          echo "SEARCHING FOR BUILT APK"
           echo "=========================================="
 
           find "$PROJECT_DIR" \
@@ -232,30 +312,39 @@ jobs:
             | head -1)
 
           if [ -z "$APK" ]; then
+
             APK=$(find "$PROJECT_DIR" \
               -type f \
               -name "*.apk" \
               | head -1)
+
           fi
 
           if [ -z "$APK" ]; then
-            echo "ERROR: APK not found."
+
+            echo ""
+            echo "ERROR: APK was not generated."
             exit 1
+
           fi
 
-          echo "APK found:"
+          echo ""
+          echo "=========================================="
+          echo "APK FOUND"
+          echo "=========================================="
+
           echo "$APK"
 
           mkdir -p "$GITHUB_WORKSPACE/output"
 
           cp "$APK" \
-            "$GITHUB_WORKSPACE/output/Pani-Puri-Business-V14.2-FIXED.apk"
+            "$GITHUB_WORKSPACE/output/Pani-Puri-Business-V14.2-ADMIN-DASHBOARD-FIXED.apk"
 
 
       # =========================================================
-      # 12. SHOW APK INFORMATION
+      # 13. APK INFORMATION
       # =========================================================
-      - name: APK Information
+      - name: Show APK Information
         shell: bash
         run: |
           echo "=========================================="
@@ -264,15 +353,15 @@ jobs:
 
           ls -lh output/
 
-          file output/Pani-Puri-Business-V14.2-FIXED.apk
+          file output/Pani-Puri-Business-V14.2-ADMIN-DASHBOARD-FIXED.apk
 
 
       # =========================================================
-      # 13. UPLOAD APK ARTIFACT
+      # 14. UPLOAD APK ARTIFACT
       # =========================================================
       - name: Upload V14.2 Fixed APK
         uses: actions/upload-artifact@v4
         with:
-          name: Pani-Puri-Business-V14.2-FIXED-APK
-          path: output/Pani-Puri-Business-V14.2-FIXED.apk
+          name: Pani-Puri-Business-V14.2-ADMIN-DASHBOARD-FIXED-APK
+          path: output/Pani-Puri-Business-V14.2-ADMIN-DASHBOARD-FIXED.apk
           if-no-files-found: error
