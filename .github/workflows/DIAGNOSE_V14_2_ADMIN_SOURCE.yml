@@ -1,0 +1,137 @@
+name: Diagnose V14.2 Admin Source
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    name: Extract V14.2 Source for Diagnosis
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # =========================================================
+      # 1. CHECKOUT
+      # =========================================================
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+
+      # =========================================================
+      # 2. EXTRACT CURRENT V14.2 SOURCE ZIP
+      # =========================================================
+      - name: Extract Source ZIP
+        shell: bash
+        run: |
+          set -e
+
+          ZIP="Pani_Puri_Business_V14_2_ADMIN_DASHBOARD_FIX_5.zip"
+
+          echo "=========================================="
+          echo "SEARCHING FOR V14.2 SOURCE ZIP"
+          echo "=========================================="
+
+          if [ ! -f "$ZIP" ]; then
+            echo "ERROR: Source ZIP not found:"
+            echo "$ZIP"
+            exit 1
+          fi
+
+          echo "FOUND:"
+          ls -lh "$ZIP"
+
+          rm -rf diagnostic-source
+          mkdir -p diagnostic-source
+
+          unzip -q "$ZIP" -d diagnostic-source
+
+          echo ""
+          echo "SOURCE EXTRACTED SUCCESSFULLY"
+          echo ""
+
+          find diagnostic-source -type f | sort
+
+
+      # =========================================================
+      # 3. SOURCE FILE INVENTORY
+      # =========================================================
+      - name: Create Source Inventory
+        shell: bash
+        run: |
+          set -e
+
+          {
+            echo "=========================================="
+            echo "V14.2 SOURCE FILE INVENTORY"
+            echo "=========================================="
+            echo ""
+
+            find diagnostic-source -type f | sort
+
+            echo ""
+            echo "=========================================="
+            echo "IMPORTANT ADMIN / BUSINESS FILES"
+            echo "=========================================="
+
+            find diagnostic-source -type f | \
+            grep -Ei \
+            '(admin|dashboard|sale|credit|expense|summary|menu|customer|bill|mainactivity|index\.html|\.js$)' \
+            | sort || true
+
+          } > source-inventory.txt
+
+          cat source-inventory.txt
+
+
+      # =========================================================
+      # 4. COLLECT SOURCE CODE
+      # =========================================================
+      - name: Collect Source Code
+        shell: bash
+        run: |
+          set -e
+
+          rm -rf diagnostic-export
+          mkdir -p diagnostic-export
+
+          cp source-inventory.txt diagnostic-export/
+
+          cd diagnostic-source
+
+          find . -type f \
+            \( \
+              -name "*.java" -o \
+              -name "*.kt" -o \
+              -name "*.js" -o \
+              -name "*.html" -o \
+              -name "*.json" -o \
+              -name "*.xml" \
+            \) \
+            -print0 > ../source-files.list
+
+          tar \
+            --null \
+            -T ../source-files.list \
+            -cf ../diagnostic-export/source-code.tar
+
+          cd ..
+
+          gzip -f diagnostic-export/source-code.tar
+
+          echo ""
+          echo "=========================================="
+          echo "DIAGNOSTIC FILE CREATED"
+          echo "=========================================="
+
+          ls -lh diagnostic-export/
+
+
+      # =========================================================
+      # 5. UPLOAD DIAGNOSTIC ARTIFACT
+      # =========================================================
+      - name: Upload Diagnostic Source
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pani-Puri-V14.2-ADMIN-DIAGNOSTIC-SOURCE
+          path: diagnostic-export
+          retention-days: 7
