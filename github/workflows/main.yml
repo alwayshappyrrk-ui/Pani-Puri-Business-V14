@@ -1,0 +1,162 @@
+name: Build Pani Puri Business V14.2
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build Android APK V14.2
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Find Android Project
+        shell: bash
+        run: |
+          set -e
+
+          FOUND=$(find . -type f -name "settings.gradle" -print -quit)
+
+          if [ -z "$FOUND" ]; then
+            echo "ERROR: settings.gradle not found"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$FOUND")
+
+          echo "Android project found:"
+          echo "$PROJECT_DIR"
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Configure AndroidX
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -e
+
+          touch gradle.properties
+
+          grep -qxF 'android.useAndroidX=true' gradle.properties || \
+            echo 'android.useAndroidX=true' >> gradle.properties
+
+          grep -qxF 'android.enableJetifier=true' gradle.properties || \
+            echo 'android.enableJetifier=true' >> gradle.properties
+
+      - name: Show Project Information
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          echo "======================================"
+          echo "PANI PURI BUSINESS V14.2"
+          echo "======================================"
+
+          echo ""
+          echo "--- settings.gradle ---"
+          cat settings.gradle
+
+          echo ""
+          echo "--- app/build.gradle ---"
+          cat app/build.gradle
+
+      - name: Build V14.2 Debug APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "BUILDING V14.2 APK"
+          echo "======================================"
+
+          gradle --no-daemon clean assembleDebug --stacktrace
+
+          echo "BUILD COMPLETED SUCCESSFULLY"
+
+      - name: Find APK
+        shell: bash
+        run: |
+          set -e
+
+          APK=$(find "${{ env.PROJECT_DIR }}" \
+            -type f \
+            -path "*/build/outputs/apk/debug/*.apk" \
+            -print -quit)
+
+          if [ -z "$APK" ]; then
+            echo "ERROR: APK NOT FOUND"
+            find "${{ env.PROJECT_DIR }}" -type f -name "*.apk" || true
+            exit 1
+          fi
+
+          echo "APK FOUND:"
+          echo "$APK"
+
+          cp "$APK" \
+            "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2.apk"
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -e
+
+          APK="${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2.apk"
+
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK does not exist"
+            exit 1
+          fi
+
+          echo "======================================"
+          echo "APK VERIFIED"
+          echo "======================================"
+
+          ls -lh "$APK"
+
+      - name: Show APK SHA-1
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "APK CERTIFICATE SHA-1"
+          echo "======================================"
+
+          keytool -printcert \
+            -jarfile "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2.apk" \
+            | grep -E "SHA1:|SHA-1:" || true
+
+      - name: Upload V14.2 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pani-Puri-Business-V14.2-APK
+          path: Pani-Puri-Business-V14.2.apk
+          if-no-files-found: error
+
+      - name: Build Complete
+        shell: bash
+        run: |
+          echo "======================================"
+          echo "BUILD SUCCESSFUL"
+          echo "======================================"
+          echo ""
+          echo "Pani Puri Business V14.2 APK तयार आहे."
+          echo ""
+          echo "APK: Pani-Puri-Business-V14.2.apk"
