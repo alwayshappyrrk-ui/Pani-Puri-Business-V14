@@ -1,4 +1,4 @@
-name: Build Pani Puri Business V14.2
+name: Build Pani Puri Business V14.2 V4
 
 on:
   workflow_dispatch:
@@ -8,44 +8,64 @@ on:
 
 jobs:
   build:
-    name: Build Android APK V14.2
+    name: Build Android APK V14.2 V4
     runs-on: ubuntu-latest
 
     steps:
 
+      # ==========================================
+      # 1. Checkout Repository
+      # ==========================================
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # ==========================================
+      # 2. Setup Java 17
+      # ==========================================
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
+      # ==========================================
+      # 3. Setup Gradle 8.7
+      # ==========================================
       - name: Setup Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
+      # ==========================================
+      # 4. Find Android Project
+      # ==========================================
       - name: Find Android Project
         shell: bash
         run: |
           set -e
 
-          FOUND=$(find . -type f -name "settings.gradle" -print -quit)
+          FOUND=$(find . -type f \( \
+            -name "settings.gradle" \
+            -o -name "settings.gradle.kts" \
+          \) -print -quit)
 
           if [ -z "$FOUND" ]; then
-            echo "ERROR: settings.gradle not found"
+            echo "ERROR: settings.gradle or settings.gradle.kts not found"
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$FOUND")
 
-          echo "Android project found:"
+          echo "======================================"
+          echo "ANDROID PROJECT FOUND"
+          echo "======================================"
           echo "$PROJECT_DIR"
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
+      # ==========================================
+      # 5. Configure AndroidX
+      # ==========================================
       - name: Configure AndroidX
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
@@ -60,36 +80,108 @@ jobs:
           grep -qxF 'android.enableJetifier=true' gradle.properties || \
             echo 'android.enableJetifier=true' >> gradle.properties
 
+          echo "AndroidX configuration completed."
+
+      # ==========================================
+      # 6. Show Project Information
+      # ==========================================
       - name: Show Project Information
-        working-directory: ${{ env.PROJECT_DIR }}
-        shell: bash
-        run: |
-          echo "======================================"
-          echo "PANI PURI BUSINESS V14.2"
-          echo "======================================"
-
-          echo ""
-          echo "--- settings.gradle ---"
-          cat settings.gradle
-
-          echo ""
-          echo "--- app/build.gradle ---"
-          cat app/build.gradle
-
-      - name: Build V14.2 Debug APK
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
         run: |
           set -e
 
           echo "======================================"
-          echo "BUILDING V14.2 APK"
+          echo "PANI PURI BUSINESS V14.2 V4"
           echo "======================================"
 
-          gradle --no-daemon clean assembleDebug --stacktrace
+          echo ""
+          echo "--- Project Directory ---"
+          pwd
 
+          echo ""
+          echo "--- Project Files ---"
+          ls -la
+
+          echo ""
+          echo "--- settings.gradle ---"
+
+          if [ -f "settings.gradle" ]; then
+            cat settings.gradle
+          elif [ -f "settings.gradle.kts" ]; then
+            cat settings.gradle.kts
+          fi
+
+          echo ""
+          echo "--- app/build.gradle ---"
+
+          if [ -f "app/build.gradle" ]; then
+            cat app/build.gradle
+          elif [ -f "app/build.gradle.kts" ]; then
+            cat app/build.gradle.kts
+          else
+            echo "WARNING: app/build.gradle not found"
+          fi
+
+      # ==========================================
+      # 7. Create / Refresh Gradle Wrapper
+      # ==========================================
+      - name: Prepare Gradle Wrapper
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -e
+
+          if [ -f "gradlew" ]; then
+            chmod +x gradlew
+            echo "Existing Gradle Wrapper found."
+          else
+            echo "Gradle Wrapper not found."
+            echo "Creating Gradle Wrapper using Gradle 8.7..."
+
+            gradle wrapper --gradle-version 8.7
+
+            chmod +x gradlew
+          fi
+
+      # ==========================================
+      # 8. Check Gradle Version
+      # ==========================================
+      - name: Check Gradle Version
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -e
+
+          chmod +x gradlew
+
+          ./gradlew --version
+
+      # ==========================================
+      # 9. Build V14.2 V4 Debug APK
+      # ==========================================
+      - name: Build V14.2 V4 Debug APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "BUILDING PANI PURI BUSINESS V14.2 V4"
+          echo "======================================"
+
+          chmod +x gradlew
+
+          ./gradlew --no-daemon clean assembleDebug --stacktrace
+
+          echo ""
+          echo "======================================"
           echo "BUILD COMPLETED SUCCESSFULLY"
+          echo "======================================"
 
+      # ==========================================
+      # 10. Find APK
+      # ==========================================
       - name: Find APK
         shell: bash
         run: |
@@ -102,22 +194,34 @@ jobs:
 
           if [ -z "$APK" ]; then
             echo "ERROR: APK NOT FOUND"
-            find "${{ env.PROJECT_DIR }}" -type f -name "*.apk" || true
+
+            echo ""
+            echo "Searching all APK files:"
+            find "${{ env.PROJECT_DIR }}" \
+              -type f \
+              -name "*.apk" || true
+
             exit 1
           fi
 
-          echo "APK FOUND:"
+          echo "======================================"
+          echo "APK FOUND"
+          echo "======================================"
+
           echo "$APK"
 
           cp "$APK" \
-            "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2.apk"
+            "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2-V4-FIXED.apk"
 
+      # ==========================================
+      # 11. Verify APK
+      # ==========================================
       - name: Verify APK
         shell: bash
         run: |
           set -e
 
-          APK="${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2.apk"
+          APK="${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2-V4-FIXED.apk"
 
           if [ ! -f "$APK" ]; then
             echo "ERROR: APK does not exist"
@@ -130,6 +234,13 @@ jobs:
 
           ls -lh "$APK"
 
+          echo ""
+          echo "APK file type:"
+          file "$APK"
+
+      # ==========================================
+      # 12. Show APK SHA-1
+      # ==========================================
       - name: Show APK SHA-1
         shell: bash
         run: |
@@ -140,16 +251,53 @@ jobs:
           echo "======================================"
 
           keytool -printcert \
-            -jarfile "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2.apk" \
+            -jarfile "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2-V4-FIXED.apk" \
             | grep -E "SHA1:|SHA-1:" || true
 
-      - name: Upload V14.2 APK
+      # ==========================================
+      # 13. Show APK SHA-256
+      # ==========================================
+      - name: Show APK SHA-256
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "APK CERTIFICATE SHA-256"
+          echo "======================================"
+
+          keytool -printcert \
+            -jarfile "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2-V4-FIXED.apk" \
+            | grep -E "SHA256:|SHA-256:" || true
+
+      # ==========================================
+      # 14. Calculate APK File SHA-256
+      # ==========================================
+      - name: Calculate APK File Hash
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "APK FILE SHA-256 HASH"
+          echo "======================================"
+
+          sha256sum \
+            "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2-V4-FIXED.apk"
+
+      # ==========================================
+      # 15. Upload V14.2 V4 APK
+      # ==========================================
+      - name: Upload V14.2 V4 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Pani-Puri-Business-V14.2-APK
-          path: Pani-Puri-Business-V14.2.apk
+          name: Pani-Puri-Business-V14.2-V4-FIXED-APK
+          path: Pani-Puri-Business-V14.2-V4-FIXED.apk
           if-no-files-found: error
 
+      # ==========================================
+      # 16. Build Complete
+      # ==========================================
       - name: Build Complete
         shell: bash
         run: |
@@ -157,6 +305,12 @@ jobs:
           echo "BUILD SUCCESSFUL"
           echo "======================================"
           echo ""
-          echo "Pani Puri Business V14.2 APK तयार आहे."
+          echo "Pani Puri Business V14.2 V4 APK तयार आहे."
           echo ""
-          echo "APK: Pani-Puri-Business-V14.2.apk"
+          echo "APK:"
+          echo "Pani-Puri-Business-V14.2-V4-FIXED.apk"
+          echo ""
+          echo "Artifact:"
+          echo "Pani-Puri-Business-V14.2-V4-FIXED-APK"
+          echo ""
+          echo "SHA-1 आणि SHA-256 वरच्या steps मध्ये दिसेल."
