@@ -138,7 +138,7 @@ jobs:
           cp "$APK" "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2-V4.apk"
 
           ls -lh "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2-V4.apk"
-                      - name: Verify V4 Inside APK
+      - name: Verify V4 Inside APK
         shell: bash
         run: |
           set -e
