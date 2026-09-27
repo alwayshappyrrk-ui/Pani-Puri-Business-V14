@@ -138,6 +138,46 @@ jobs:
           cp "$APK" "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2-V4.apk"
 
           ls -lh "${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2-V4.apk"
+                - name: Verify V4 Inside APK
+        shell: bash
+        run: |
+          set -e
+
+          APK="${GITHUB_WORKSPACE}/Pani-Puri-Business-V14.2-V4.apk"
+
+          echo "Checking APK: $APK"
+
+          mkdir -p apk_check
+          unzip -q -o "$APK" "assets/index.html" -d apk_check
+
+          test -f apk_check/assets/index.html || {
+            echo "ERROR: index.html not found inside APK."
+            exit 1
+          }
+
+          echo "Checking V4 markers inside APK..."
+
+          grep -q 'expenseEntriesMain' apk_check/assets/index.html || {
+            echo "ERROR: V4 marker expenseEntriesMain NOT found inside APK."
+            exit 1
+          }
+
+          grep -q 'renderSharedExpenseViews' apk_check/assets/index.html || {
+            echo "ERROR: V4 marker renderSharedExpenseViews NOT found inside APK."
+            exit 1
+          }
+
+          if grep -q 'Recently Deleted Entries' apk_check/assets/index.html; then
+            echo "ERROR: Old 'Recently Deleted Entries' UI still exists inside APK."
+            exit 1
+          fi
+
+          if grep -q 'Entries — Delete' apk_check/assets/index.html; then
+            echo "ERROR: Old 'Entries — Delete' UI still exists inside APK."
+            exit 1
+          fi
+
+          echo "V4 APK verification PASSED."
 
       - name: Show APK SHA-1
         shell: bash
