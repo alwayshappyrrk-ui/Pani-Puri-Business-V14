@@ -26,15 +26,38 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Extract V4 ZIP
+        shell: bash
+        run: |
+          set -e
+
+          ZIP=$(find . -maxdepth 2 -type f -name 'Pani-Puri-Business-V14.2-V4-FINAL-READY.zip' -print -quit)
+
+          if [ -z "$ZIP" ]; then
+            echo "ERROR: V4 ZIP not found."
+            find . -type f -name '*.zip' -print
+            exit 1
+          fi
+
+          echo "Found ZIP: $ZIP"
+
+          mkdir -p extracted
+
+          unzip -q "$ZIP" -d extracted
+
+          echo "Extracted files:"
+          find extracted -maxdepth 3 -type f | head -100
+
       - name: Locate Android Project
         shell: bash
         run: |
           set -e
 
-          PROJECT_DIR=$(find . -type f -name settings.gradle -print -quit | xargs -r dirname)
+          PROJECT_DIR=$(find extracted -type f -name settings.gradle -print -quit | xargs -r dirname)
 
           if [ -z "$PROJECT_DIR" ]; then
-            echo "ERROR: settings.gradle not found."
+            echo "ERROR: settings.gradle not found after ZIP extraction."
+            find extracted -type f | head -200
             exit 1
           fi
 
@@ -82,13 +105,6 @@ jobs:
 
           grep -qxF 'android.enableJetifier=true' gradle.properties || \
             echo 'android.enableJetifier=true' >> gradle.properties
-
-      - name: Show Project Version
-        working-directory: ${{ env.PROJECT_DIR }}
-        shell: bash
-        run: |
-          echo "===== app/build.gradle ====="
-          cat app/build.gradle
 
       - name: Build Debug APK
         working-directory: ${{ env.PROJECT_DIR }}
@@ -145,5 +161,4 @@ jobs:
           if-no-files-found: error
 
       - name: Build Complete
-        run: |
-          echo "Pani Puri Business V14.2 V4 APK तयार आहे."
+        run: echo "Pani Puri Business V14.2 V4 APK तयार आहे."
