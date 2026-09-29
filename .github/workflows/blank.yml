@@ -31,7 +31,7 @@ jobs:
         run: |
           set -e
 
-          ZIP=$(find . -maxdepth 2 -type f -name 'Pani-Puri-Business-V14.2-V4.1-EXPENSES-MENU-FIXED.zip' -print -quit)
+          ZIP=$(find . -maxdepth 2 -type f -name 'Pani-Puri-Business-V14.2-V4.2-LIVE-FIXED.zip' -print -quit)
 
           if [ -z "$ZIP" ]; then
             echo "ERROR: V4 ZIP not found."
